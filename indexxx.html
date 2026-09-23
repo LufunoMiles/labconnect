@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LabConnect Agent — Computer health & fault reporting</title>
+
+    <!-- Font & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+
+    <style>
+        /* ===== RESET & BASE ===== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #dededb;
+            color: #292a24;
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        /* ===== UTILITY ===== */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.2rem 0.7rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+        }
+
+        .status-badge .dot {
+            width: 0.45rem;
+            height: 0.45rem;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-badge.healthy { background: #eeefbb; color: #414619; }
+        .status-badge.healthy .dot { background: #666b20; }
+
+        .status-badge.warning { background: #ffe0b5; color: #714016; }
+        .status-badge.warning .dot { background: #a65b20; }
+
+        .status-badge.critical { background: #ffdbc6; color: #783211; }
+        .status-badge.critical .dot { background: #bb521e; }
+
+        .status-badge.offline { background: #e9ecef; color: #495057; }
+        .status-badge.offline .dot { background: #6c757d; }
+
+        .status-badge.maintenance { background: #e4e4d4; color: #454535; }
+        .status-badge.maintenance .dot { background: #686853; }
+
+        .status-badge.resolved { background: #eeefbb; color: #414619; }
+        .status-badge.resolved .dot { background: #666b20; }
+
+        .status-badge.open { background: #ffe0b5; color: #714016; }
+        .status-badge.open .dot { background: #a65b20; }
+
+        .status-badge.in-progress { background: #e4e4d4; color: #454535; }
+        .status-badge.in-progress .dot { background: #686853; }
+
+        .status-badge.acknowledged { background: #d6d8e7; color: #2d2a5e; }
+        .status-badge.acknowledged .dot { background: #666b20; }
+
+        .status-badge.closed { background: #e9ecef; color: #495057; }
+        .status-badge.closed .dot { background: #6c757d; }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1.1rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            font-size: 0.813rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            text-decoration: none;
+            background: #fff;
+            color: #292a24;
+            border: 1px solid #e2e8f0;
+        }
+
+        .btn:hover { background: #f8f9fa; }
+
+        .btn-primary {
+            background: #151613;
+            color: #fff;
+            border-color: #151613;
+        }
+        .btn-primary:hover { background: #292a24; border-color: #292a24; }
+
+        .btn-teal {
+            background: #666b20;
+            color: #fff;
+            border-color: #666b20;
+        }
+        .btn-teal:hover { background: #50551b; border-color: #50551b; }
+
+        .btn-success {
+            background: #666b20;
+            color: #fff;
+            border-color: #666b20;
+        }
+        .btn-success:hover { background: #1e7e34; border-color: #1e7e34; }
+
+        .btn-danger {
+            background: #bb521e;
+            color: #fff;
+            border-color: #bb521e;
+        }
+        .btn-danger:hover { background: #c82333; border-color: #c82333; }
+
+        .btn-warning {
+            background: #a65b20;
+            color: #292a24;
+            border-color: #a65b20;
+        }
+        .btn-warning:hover { background: #e0a800; border-color: #e0a800; }
+
+        .btn-outline {
+            background: transparent;
+            border-color: #e2e8f0;
+        }
+        .btn-outline:hover { background: #f8f9fa; }
+
+        .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.7rem; }
+        .btn-lg { padding: 0.625rem 1.25rem; font-size: 0.938rem; }
+
+        .card {
+            background: #ffffff;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border: 1px solid #eef2f7;
+            transition: box-shadow 0.15s ease;
+        }
+        .card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+
+        .card-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #696b62;
+            margin-bottom: 0.4rem;
+        }
+
+        .card-value {
+            font-size: 1.625rem;
+            font-weight: 700;
+            color: #151613;
+            line-height: 1.2;
+        }
+
+        .card-value .sub {
+            font-size: 0.813rem;
+            font-weight: 400;
+            color: #696b62;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #151613;
+            margin-bottom: 1rem;
+        }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+
+        .flex { display: flex; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+        .flex-center { display: flex; align-items: center; gap: 0.5rem; }
+        .gap-1 { gap: 0.5rem; }
+        .gap-2 { gap: 1rem; }
+        .gap-3 { gap: 1.5rem; }
+        .mt-1 { margin-top: 0.5rem; }
+        .mt-2 { margin-top: 1rem; }
+        .mt-3 { margin-top: 1.5rem; }
+        .mb-1 { margin-bottom: 0.5rem; }
+        .mb-2 { margin-bottom: 1rem; }
+        .mb-3 { margin-bottom: 1.5rem; }
+        .text-center { text-align: center; }
+        .text-muted { color: #696b62; }
+        .text-sm { font-size: 0.813rem; }
+        .text-xs { font-size: 0.7rem; }
+
+        /* ===== SIDEBAR ===== */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 240px;
+            background: #151613;
+            color: #d4d7e3;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            z-index: 50;
+            transition: transform 0.25s ease;
+            overflow-y: auto;
+        }
+
+        .sidebar-brand {
+            padding: 1.25rem 1.25rem 0.75rem 1.25rem;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .sidebar-brand h1 {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -0.02em;
+        }
+        .sidebar-brand h1 span {
+            color: #666b20;
+        }
+        .sidebar-brand .tagline {
+            font-size: 0.6rem;
+            font-weight: 400;
+            color: #696b62;
+            letter-spacing: 0.06em;
+            margin-top: 0.1rem;
+        }
+
+        .sidebar-nav {
+            flex: 1;
+            padding: 0.75rem 0.75rem 1rem;
+        }
+
+        .sidebar-nav .nav-label {
+            font-size: 0.55rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #5a5f7a;
+            padding: 0.75rem 0.75rem 0.25rem;
+        }
+
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 0.625rem;
+            padding: 0.5rem 0.75rem;
+            border-radius: 0.5rem;
+            color: #a8adc7;
+            text-decoration: none;
+            font-size: 0.813rem;
+            font-weight: 500;
+            transition: all 0.12s ease;
+            margin-bottom: 0.1rem;
+        }
+
+        .sidebar-nav a i {
+            width: 1.25rem;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #5a5f7a;
+        }
+
+        .sidebar-nav a:hover {
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+        }
+        .sidebar-nav a:hover i {
+            color: #d4d7e3;
+        }
+
+        .sidebar-nav a.active {
+            background: rgba(14, 165, 233, 0.12);
+            color: #fff;
+        }
+        .sidebar-nav a.active i {
+            color: #666b20;
+        }
+
+        .sidebar-footer {
+            padding: 0.75rem 1.25rem;
+            border-top: 1px solid rgba(255,255,255,0.06);
+            font-size: 0.7rem;
+            color: #5a5f7a;
+        }
+
+        /* ===== MAIN CONTENT ===== */
+        .main-content {
+            flex: 1;
+            margin-left: 240px;
+            padding: 1.5rem 2rem 2rem;
+            min-height: 100vh;
+            background: #dededb;
+        }
+
+        /* ===== TOP BAR ===== */
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #eef2f7;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+
+        .topbar-left h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #151613;
+        }
+        .topbar-left .breadcrumb {
+            font-size: 0.8rem;
+            color: #696b62;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.25rem 0.5rem 0.25rem 0.75rem;
+            border-radius: 9999px;
+            background: #fff;
+            border: 1px solid #eef2f7;
+            cursor: pointer;
+            font-size: 0.813rem;
+            font-weight: 500;
+        }
+        .user-menu .avatar {
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            background: #666b20;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.7rem;
+        }
+
+        .role-badge {
+            font-size: 0.55rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0.15rem 0.6rem;
+            border-radius: 9999px;
+            background: #151613;
+            color: #fff;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        .sidebar-toggle {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 1.25rem;
+            color: #292a24;
+            cursor: pointer;
+            padding: 0.25rem;
+        }
+
+        @media (max-width: 992px) {
+            .grid-4 { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                width: 280px;
+            }
+            .sidebar.open { transform: translateX(0); }
+            .main-content { margin-left: 0; padding: 1rem; }
+            .sidebar-toggle { display: block; }
+            .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+            .topbar { flex-direction: column; align-items: stretch; }
+            .topbar-right { justify-content: flex-end; }
+        }
+
+        @media (max-width: 480px) {
+            .main-content { padding: 0.75rem; }
+            .card { padding: 0.875rem; }
+            .card-value { font-size: 1.25rem; }
+        }
+
+        /* ===== PAGE CONTENT (dynamic) ===== */
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* ===== LAB MAP ===== */
+        .computer-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .computer-tile {
+            background: #fff;
+            border: 1px solid #eef2f7;
+            border-radius: 0.5rem;
+            padding: 0.625rem 0.4rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .computer-tile:hover {
+            border-color: #666b20;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .computer-tile .pc-id {
+            font-weight: 600;
+            font-size: 0.75rem;
+            color: #151613;
+        }
+        .computer-tile .pc-status {
+            font-size: 0.6rem;
+            color: #696b62;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            margin-top: 0.15rem;
+        }
+        .computer-tile .pc-status .dot-sm {
+            width: 0.4rem;
+            height: 0.4rem;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .computer-tile.healthy { border-left: 3px solid #666b20; }
+        .computer-tile.warning { border-left: 3px solid #a65b20; }
+        .computer-tile.critical { border-left: 3px solid #bb521e; }
+        .computer-tile.offline { border-left: 3px solid #6c757d; background: #f8f9fa; }
+        .computer-tile.maintenance { border-left: 3px solid #686853; }
+
+        /* ===== TABLES ===== */
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.813rem; }
+        th { 
+            text-align: left; 
+            padding: 0.6rem 0.75rem; 
+            font-weight: 600; 
+            color: #696b62; 
+            border-bottom: 1px solid #eef2f7; 
+            font-size: 0.65rem; 
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+        }
+        td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #f5f6fa; }
+        tr:hover td { background: #fafbfc; }
+
+        /* ===== FORMS ===== */
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-weight: 500; font-size: 0.813rem; margin-bottom: 0.25rem; color: #292a24; }
+        .form-group .hint { font-size: 0.7rem; color: #696b62; font-weight: 400; }
+        .form-control {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-family: inherit;
+            transition: border-color 0.15s ease;
+            background: #fff;
+        }
+        .form-control:focus { outline: none; border-color: #666b20; box-shadow: 0 0 0 3px rgba(14,165,233,0.08); }
+        select.form-control { appearance: auto; }
+
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.813rem;
+            margin-bottom: 1rem;
+        }
+        .alert-info { background: #eeeece; color: #454535; border: 1px solid #dedebc; }
+        .alert-success { background: #eeefbb; color: #414619; border: 1px solid #b8dfc5; }
+        .alert-warning { background: #ffe0b5; color: #714016; border: 1px solid #fae8a6; }
+        .alert-danger { background: #ffdbc6; color: #783211; border: 1px solid #f5c6cb; }
+
+        /* ===== DEMO BADGE ===== */
+        .demo-badge {
+            display: inline-block;
+            font-size: 0.5rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            padding: 0.1rem 0.5rem;
+            border-radius: 9999px;
+            background: rgba(255,255,255,0.06);
+            color: #5a5f7a;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+
+        /* ===== STATS ROW (like reference) ===== */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            background: #fff;
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            border: 1px solid #eef2f7;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .stat-card .stat-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: #696b62;
+        }
+        .stat-card .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #151613;
+        }
+        .stat-card .stat-change {
+            font-size: 0.7rem;
+            font-weight: 500;
+        }
+        .stat-card .stat-change.up { color: #666b20; }
+        .stat-card .stat-change.down { color: #bb521e; }
+
+        /* scroll */
+        .sidebar::-webkit-scrollbar { width: 3px; }
+        .sidebar::-webkit-scrollbar-track { background: transparent; }
+        .sidebar::-webkit-scrollbar-thumb { background: #2a2f4a; border-radius: 9999px; }
+
+        /* Reference palette: pearl gray, lime, olive and muted rose. */
+        :root { --citrus:#d6fa51; --apricot:#c8958d; --ink:#181b18; --muted:#737870; --glass:rgba(255,255,255,.76); }
+        body { background: radial-gradient(ellipse at 65% 25%, #e6ded780 0, transparent 45%), #eceeed; color:var(--ink); }
+        button,input,select,textarea { font:inherit; }
+        button:focus-visible,a:focus-visible { outline:3px solid #666b20; outline-offset:4px; }
+        .sidebar { width:210px; background:rgba(231,231,217,.28); color:var(--ink); border-right:1px solid #ffffff45; padding:18px 8px; }
+        .sidebar-brand { padding:18px 16px 30px; border:0; }
+        .sidebar-brand h1 { color:var(--ink); font-size:22px; font-weight:500; letter-spacing:-1px; }
+        .sidebar-brand h1::before { content:''; display:block; width:29px; height:20px; border:5px solid var(--ink); border-left-color:transparent; border-right-color:transparent; transform:rotate(-25deg); border-radius:7px; margin-bottom:24px; }
+        .sidebar-brand h1 span { color:var(--ink); }
+        .sidebar-brand .tagline,.sidebar-footer,.sidebar-nav .nav-label { color:var(--muted); }
+        .sidebar-nav a { color:#52544b; padding:13px 14px; border-radius:15px; margin-bottom:6px; font-size:12px; }
+        .sidebar-nav a i,.sidebar-nav a.active i { color:var(--ink); }
+        .sidebar-nav a:hover,.sidebar-nav a.active { background:#ffffffa8; color:var(--ink); }
+        .sidebar-nav a:hover i { color:var(--ink); }
+        .sidebar-footer { border-color:#ffffff66; }
+        .demo-badge { color:#55574c; border-color:#898b7255; }
+        .main-content { margin-left:210px; padding:38px 38px 48px; background:transparent; min-width:0; }
+        .topbar { border:0; margin-bottom:30px; padding:0; }
+        .topbar-left h2 { font-size:clamp(30px,3.4vw,48px); font-weight:400; letter-spacing:-2px; line-height:1.2; }
+        .topbar-left .breadcrumb { font-size:11px; margin-top:9px; }
+        .user-menu { background:var(--glass); border-color:#ffffff88; border-radius:16px; padding:8px 10px 8px 15px; font-size:12px; cursor:default; }
+        .user-menu .avatar { background:var(--ink); color:var(--citrus); }
+        .role-badge { background:#ffffff65; color:var(--ink); padding:7px 10px; }
+        .btn { border-radius:13px; padding:10px 16px; background:var(--glass); border-color:#ffffff88; color:var(--ink); }
+        .btn:hover { background:#ffffffa6; transform:translateY(-1px); }
+        .btn-primary,.btn-teal,.btn-success { background:var(--citrus); border-color:var(--citrus); color:var(--ink); }
+        .btn-primary:hover,.btn-teal:hover,.btn-success:hover { background:#e8e927; border-color:#e8e927; }
+        .btn-warning,.btn-danger { background:var(--apricot); color:var(--ink); border-color:var(--apricot); }
+        .btn-sm { padding:7px 11px; }
+        .card,.stat-card { background:var(--glass); border:1px solid #ffffff66; border-radius:22px; box-shadow:none; padding:23px; }
+        .card:hover { box-shadow:0 8px 24px #33351a08; }
+        .section-title { font-weight:500; font-size:18px; letter-spacing:-.5px; margin:25px 0 16px; }
+        .stats-row { gap:12px; grid-template-columns:repeat(3,minmax(0,1fr)); }
+        .stat-card .stat-label { text-transform:none; letter-spacing:0; color:#505248; font-weight:400; }
+        .stat-card .stat-value { font-weight:400; font-size:34px; color:var(--ink)!important; }
+        .status-badge { text-transform:none; font-weight:500; letter-spacing:0; font-size:10px; padding:5px 9px; }
+        .table-wrap { border-radius:20px; background:#ffffff17; padding:8px 12px; }
+        th { text-transform:none; letter-spacing:0; font-weight:400; font-size:11px; border-color:#ffffff55; padding:16px 12px; }
+        td { padding:18px 12px; border-color:#ffffff35; font-size:12px; }
+        tr:hover td { background:#ffffff35; }
+        .form-control { background:#ffffff55; border-color:#ffffffaa; border-radius:13px; padding:12px 14px; color:var(--ink); }
+        .form-control:focus { border-color:#686b30; box-shadow:0 0 0 3px #686b3015; }
+        .computer-tile { background:#ffffff66; border-radius:15px; padding:16px 8px; }
+        .overview { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin-bottom:25px; }
+        .overview-card { border-radius:25px; padding:24px; position:relative; overflow:hidden; min-height:230px; }
+        .overview-card h3 { font-size:14px; font-weight:400; }
+        .overview-card .metric { font-size:62px; font-weight:400; letter-spacing:-4px; margin-top:20px; line-height:1.15; position:relative; z-index:1; }
+        .overview-card p { font-size:11px; margin-top:8px; position:relative; z-index:1; }
+        .overview-card.citrus { background:radial-gradient(ellipse at 90% 100%, #d6fa51, transparent 65%), linear-gradient(125deg,#35451e,#77863e); color:#fff; }
+        .overview-card.apricot { background:radial-gradient(ellipse at 100% 100%,#cab89a,transparent 70%),linear-gradient(135deg,#b7777b,#b79880); color:#fff; }
+        .overview-card.dark { background:#151613; color:#f1f1e8; display:flex; flex-direction:column; align-items:flex-start; }
+        .overview-card.dark h3 { color:#c5c6ba; }
+        .overview-card.dark strong { font-size:27px; font-weight:400; letter-spacing:-1px; margin-top:22px; line-height:1.2; }
+        .overview-card.dark .btn { margin-top:auto; font-size:11px; }
+        .mini-bars { position:absolute; right:20px; bottom:0; display:flex; align-items:flex-end; gap:7px; height:105px; opacity:.8; }
+        .mini-bars span { width:26px; height:35%; background:repeating-linear-gradient(45deg, #292a24 0 2px, transparent 2px 5px); border-radius:9px 9px 0 0; }
+        .mini-bars span:nth-child(2) { height:65%; } .mini-bars span:nth-child(3) { height:100%; background:linear-gradient(#292a24,transparent); }
+        .overview-card.apricot::after { content:''; position:absolute; width:140px; height:140px; border:28px solid #292a2422; border-top-color:#292a24; border-radius:50%; right:-30px; bottom:-35px; transform:rotate(-25deg); }
+        .login-layout { display:grid; grid-template-columns:1.1fr 1fr; max-width:1000px; margin:45px auto; gap:18px; align-items:stretch; }
+        .login-story { background:radial-gradient(ellipse at 95% 5%,#aac961,transparent 52%),radial-gradient(ellipse at 100% 100%,#d3a6b0,transparent 60%),linear-gradient(145deg,#343d2c,#89904a 50%,#b48a6d); color:#fff; border-radius:28px; padding:42px; display:flex; flex-direction:column; position:relative; overflow:hidden; }
+        .login-story .eyebrow { font-size:11px; letter-spacing:2px; text-transform:uppercase; }
+        .login-story h2 { font-size:clamp(34px,4vw,56px); line-height:1.08; font-weight:400; letter-spacing:-2.5px; margin:42px 0 20px; }
+        .login-story p { font-size:13px; max-width:260px; }
+        .login-story .story-footer { margin-top:auto; padding-top:60px; font-size:11px; }
+        .login-layout > .card { padding:36px!important; }
+        body.signed-out .topbar-right { display:none; }
+        .alert { border-radius:13px; }
+        @media(min-width:1500px) { .main-content { padding-left:60px; padding-right:60px; } }
+        @media(max-width:1100px) { .main-content { padding:28px 24px; } .overview-card { padding:20px; } .login-story { padding:28px; } }
+        @media(max-width:768px) { .sidebar { width:240px; background:#e4e4d7; } .main-content { margin-left:0; padding:24px 18px; } .topbar-left { position:relative; padding-left:36px; } .sidebar-toggle { position:absolute; left:0; top:7px; } .topbar-right { flex-wrap:wrap; justify-content:flex-start; } .overview { grid-template-columns:1fr; } .overview-card { min-height:200px; } .stats-row { grid-template-columns:repeat(2,minmax(0,1fr)); } .login-layout { grid-template-columns:1fr; margin:20px auto; } .login-story .story-footer { padding-top:30px; } .grid-2 .flex-between { flex-wrap:wrap; gap:10px; } }
+        @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none!important; scroll-behavior:auto!important; } }
+
+        /* Soft surfaces and compact controls shared by every application screen. */
+        .sidebar { background:#e7eae780; border-right:1px solid #d9ddd7; }
+        .sidebar-nav a { border-radius:24px; font-weight:400; }
+        .sidebar-nav a.active { background:var(--ink); color:#fff; }
+        .sidebar-nav a.active i { color:var(--citrus); }
+        .sidebar-nav a:hover { background:#fff; }
+        .sidebar-nav a.active:hover { background:#343a30; color:#fff; }
+        .sidebar-nav a.active:hover i { color:var(--citrus); }
+        .topbar-left h2 { font-size:34px; letter-spacing:-1.4px; }
+        .topbar { padding-bottom:22px; border-bottom:1px solid #d9ddd780; }
+        .btn,.user-menu,.role-badge { border-radius:24px; }
+        .btn-outline { border-color:#cdd2ca; background:transparent; }
+        .btn-primary,.btn-teal { background:var(--ink); border-color:var(--ink); color:white; }
+        .btn-primary:hover,.btn-teal:hover { background:#373e30; border-color:#373e30; color:white; }
+        .btn-success { background:var(--citrus); border-color:var(--citrus); }
+        .btn-success:hover { background:#c8ec43; border-color:#c8ec43; }
+        .btn-danger:hover,.btn-warning:hover { background:#b78078; border-color:#b78078; }
+        .card,.stat-card { border:1px solid #ffffffb3; border-radius:28px; box-shadow:0 8px 30px #37412b03; }
+        .stat-card { min-height:116px; }
+        .stat-card .stat-value { margin-top:12px; letter-spacing:-1.5px; }
+        .overview { gap:18px; }
+        .overview-card { min-height:250px; border-radius:30px; padding:26px; }
+        .overview-card h3 { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+        .overview-card h3 i { border:1px solid #ffffff60; padding:10px; border-radius:50%; font-size:12px; }
+        .overview-card .metric { margin-top:22px; font-size:56px; letter-spacing:-2.8px; }
+        .overview-card p { max-width:210px; }
+        .overview-card.dark { background:#fff; color:var(--ink); border:1px solid #fff; }
+        .overview-card.dark h3 { color:var(--muted); }
+        .overview-card.dark .btn { background:var(--citrus); color:var(--ink); border-color:var(--citrus); margin-top:22px; }
+        .overview-card.dark .btn:hover { background:#c8ec43; }
+        .mini-bars { height:55px; opacity:.5; }
+        .mini-bars span { background:radial-gradient(circle,#efffb1 1px,transparent 2px) 0 0 / 6px 6px; }
+        .mini-bars span:nth-child(3) { background:linear-gradient(transparent,#e3fa8a); }
+        .overview-card.apricot::after { width:90px; height:45px; right:24px; bottom:20px; border:0; border-radius:0; transform:none; opacity:.45; background:repeating-linear-gradient(90deg,#fff2ca 0 2px,transparent 2px 9px); mask-image:linear-gradient(transparent,#000); }
+        .dashboard-intro { display:flex; justify-content:space-between; align-items:center; gap:20px; margin:0 0 25px; }
+        .dashboard-intro h3 { font-size:23px; font-weight:400; letter-spacing:-.8px; }
+        .dashboard-intro p { color:var(--muted); font-size:13px; margin-top:5px; }
+        .campus-label { display:inline-flex; align-items:center; gap:9px; border:1px solid #cdd2ca; padding:10px 15px; border-radius:25px; font-size:11px; white-space:nowrap; }
+        .status-badge.healthy,.status-badge.resolved { background:#e5f4b6; color:#3b4e22; }
+        .status-badge.warning,.status-badge.open { background:#ede5c8; color:#665528; }
+        .status-badge.critical { background:#edd4d1; color:#793f3a; }
+        .status-badge.critical .dot { background:#a4645a; }
+        .status-badge.warning .dot,.status-badge.open .dot { background:#8c7840; }
+        .status-badge.maintenance,.status-badge.in-progress,.status-badge.acknowledged { background:#e0e6db; color:#495640; }
+        .status-badge.in-progress .dot { background:#697d54; }
+        .status-mark { display:inline-block; width:6px; height:6px; border-radius:50%; margin:0 5px 2px 0; background:#788e43; }
+        .status-mark.faulty { background:#b77b71; } .status-mark.offline { background:#969c95; }
+        .table-wrap { background:#ffffff40; border:1px solid #ffffff70; border-radius:24px; }
+        th { color:#777e73; border-color:#dce1d7; } td { border-color:#dce1d780; }
+        .form-control { background:#f7f8f5; border-color:#dfe3da; border-radius:16px; }
+        .alert-info { background:#eef1e5; border-color:#dce2cc; color:#4a5540; }
+        .login-layout > .card { background:#ffffffba; }
+        .login-story::after { content:''; width:230px; height:230px; position:absolute; bottom:-80px; right:-60px; border:1px solid #ffffff35; border-radius:50%; box-shadow:0 0 0 25px #ffffff09,0 0 0 50px #ffffff08; pointer-events:none; }
+        .login-story .story-footer { z-index:1; }
+        @media(max-width:768px) { .sidebar { background:#e9ece7; } .dashboard-intro { align-items:flex-start; flex-direction:column; gap:12px; } .overview-card { min-height:220px; } .topbar-left h2 { font-size:30px; } }
+    </style>
+    <link rel="stylesheet" href="agent.css" />
+</head>
+<body>
+
+<div class="app-container" id="app">
+
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <h1>Lab<span>Connect</span></h1>
+            <div class="tagline">Detect. Report. Resolve.</div>
+        </div>
+
+        <nav class="sidebar-nav" id="sidebarNav">
+            <!-- filled dynamically -->
+        </nav>
+
+        <div class="sidebar-footer">
+            <span id="sidebarUser">Student</span> &middot; <span class="demo-badge">DEMO</span>
+        </div>
+    </aside>
+
+    <!-- ===== MAIN ===== -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <header class="topbar">
+            <div class="topbar-left">
+                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h2 id="pageTitle">Dashboard</h2>
+                <div class="breadcrumb" id="pageBreadcrumb">LabConnect / Dashboard</div>
+            </div>
+            <div class="topbar-right">
+                <span class="role-badge" id="roleBadge">Student</span>
+                <div class="user-menu" id="userMenu">
+                    <span id="userNameDisplay">Student</span>
+                    <div class="avatar" id="userAvatar">S</div>
+                </div>
+                <button class="btn btn-outline btn-sm" id="logoutBtn"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            </div>
+        </header>
+
+        <!-- ===== PAGES ===== -->
+        <div id="pages">
+            <!-- content rendered by JS -->
+        </div>
+    </main>
+</div>
+
+<script>
+// ============================================================
+//  DATA
+// ============================================================
+
+const LABS = [
+    { id: 1, name: 'Computer Lab 1', building: 'Science Block', room: 'F001', total: 20 },
+    { id: 2, name: 'Computer Lab 2', building: 'Science Block', room: 'F002', total: 20 },
+    { id: 3, name: 'Computer Lab 3', building: 'Engineering Wing', room: 'E101', total: 20 },
+    { id: 4, name: 'Computer Lab 4', building: 'Engineering Wing', room: 'E102', total: 20 },
+];
+
+const STATUSES = ['HEALTHY', 'WARNING', 'FAULT_REPORTED', 'UNDER_MAINTENANCE', 'OFFLINE'];
+const STATUS_MAP = {
+    HEALTHY: { label: 'Healthy', cls: 'healthy', icon: 'fa-check-circle', color: '#666b20' },
+    WARNING: { label: 'Warning', cls: 'warning', icon: 'fa-triangle-exclamation', color: '#a65b20' },
+    FAULT_REPORTED: { label: 'Faulty', cls: 'critical', icon: 'fa-circle-exclamation', color: '#bb521e' },
+    UNDER_MAINTENANCE: { label: 'Maintenance', cls: 'maintenance', icon: 'fa-tools', color: '#686853' },
+    OFFLINE: { label: 'Offline', cls: 'offline', icon: 'fa-power-off', color: '#6c757d' },
+};
+
+const FAULT_TYPES = [
+    'Computer Not Starting',
+    'Network Problem',
+    'Internet Problem',
+    'Keyboard Problem',
+    'Mouse Problem',
+    'Monitor/Display Problem',
+    'Login Problem',
+    'Software Problem',
+    'Slow Computer',
+    'Physical Damage',
+    'Other'
+];
+
+const FAULT_SOURCES = ['MANUAL', 'AUTO'];
+const FAULT_STATUSES = ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+
+let users = [
+    { id: 1, name: 'Student User', email: 'student@labconnect.demo', role: 'STUDENT', initials: 'S' },
+    { id: 2, name: 'Lecturer User', email: 'lecturer@labconnect.demo', role: 'LECTURER', initials: 'L' },
+    { id: 3, name: 'Technician User', email: 'technician@labconnect.demo', role: 'TECHNICIAN', initials: 'T' },
+    { id: 4, name: 'Admin User', email: 'admin@labconnect.demo', role: 'ADMIN', initials: 'A' },
+];
+
+// Generate computers
+let computers = [];
+let computerId = 1;
+LABS.forEach(lab => {
+    for (let i = 1; i <= lab.total; i++) {
+        const num = String(i).padStart(2, '0');
+        const status = 'HEALTHY';
+        computers.push({
+            id: computerId++,
+            labId: lab.id,
+            number: `PC-${num}`,
+            hostname: `LAB${lab.id}-PC${num}`,
+            ip: `192.168.${lab.id}.${i}`,
+            os: 'Windows 11 Pro',
+            status: status,
+            lastSeen: new Date().toISOString(),
+            network: 'CONNECTED',
+            internet: 'CONNECTED',
+            agent: 'ONLINE',
+        });
+    }
+});
+
+// Fault reports
+let faults = [];
+let faultId = 1;
+
+function createFault(computerId, type, description, source, reporterId, priority = 'MEDIUM') {
+    const computer = computers.find(c => c.id === computerId);
+    if (!computer) return null;
+    const lab = LABS.find(l => l.id === computer.labId);
+    const report = {
+        id: faultId++,
+        computerId,
+        labId: computer.labId,
+        computerNumber: computer.number,
+        labName: lab ? lab.name : 'Unknown',
+        faultType: type,
+        description: description,
+        source: source,
+        priority: priority,
+        status: 'OPEN',
+        reportedBy: reporterId,
+        assignedTechnician: null,
+        reportedAt: new Date().toISOString(),
+        resolvedAt: null,
+        notes: [],
+        history: [{ status: 'OPEN', at: new Date().toISOString(), by: reporterId }]
+    };
+    faults.push(report);
+    // User reports and ticket resolution must not mutate telemetry.
+    return report;
+}
+
+// Seed faults
+function seedFaults() {
+    const comps = computers.slice(0, 30);
+    comps.forEach((c, idx) => {
+        if (idx % 5 === 0) {
+            const type = FAULT_TYPES[idx % FAULT_TYPES.length];
+            const source = idx % 3 === 0 ? 'AUTO' : 'MANUAL';
+            const reporter = source === 'AUTO' ? 0 : (idx % 2 === 0 ? 1 : 2);
+            const statuses = ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'RESOLVED'];
+            const f = createFault(c.id, type, `Sample ${source.toLowerCase()} fault on ${c.number}`, source, reporter);
+            if (f) {
+                const st = statuses[idx % statuses.length];
+                if (st !== 'OPEN') {
+                    f.status = st;
+                    f.history.push({ status: st, at: new Date(Date.now() - 3600000 * idx).toISOString(), by: reporter });
+                }
+            }
+        }
+    });
+}
+// Sample faults are initialized by agent.js.
+
+// ============================================================
+//  STATE
+// ============================================================
+
+let currentUser = null;
+let currentPage = 'dashboard';
+let selectedLabId = null;
+let selectedComputerId = null;
+
+// ============================================================
+//  RENDER FUNCTIONS
+// ============================================================
+
+function getStatusInfo(status) {
+    return STATUS_MAP[status] || STATUS_MAP.HEALTHY;
+}
+
+function getStatusBadge(status) {
+    const info = getStatusInfo(status);
+    return `<span class="status-badge ${info.cls}"><span class="dot"></span> ${info.label}</span>`;
+}
+
+function getFaultStatusBadge(status) {
+    const cls = status.toLowerCase().replace('_', '-');
+    return `<span class="status-badge ${cls}"><span class="dot"></span> ${status.replace('_', ' ')}</span>`;
+}
+
+function getUserName(id) {
+    if (id === 0) return 'System';
+    const u = users.find(u => u.id === id);
+    return u ? u.name : 'Unknown';
+}
+
+
+
+function navigateTo(page, data = null) {
+    document.body.classList.remove('signed-out');
+    currentPage = page;
+    renderSidebar();
+    document.querySelectorAll('.sidebar-nav a[data-page]').forEach(el => {
+        el.classList.toggle('active', el.dataset.page === page);
+    });
+
+    const titles = {
+        dashboard: 'Dashboard',
+        labs: 'Laboratories',
+        myreports: 'My Reports',
+        report: 'Report a Problem',
+        faults: 'Fault Management',
+        monitoring: 'Laboratory overview',
+        computers: 'Computer Management',
+        users: 'User Management',
+        analytics: 'Analytics & Reports',
+    };
+    document.getElementById('pageTitle').textContent = titles[page] || page;
+    document.getElementById('pageBreadcrumb').textContent = `LabConnect Agent / ${titles[page] || page}`;
+
+    const container = document.getElementById('pages');
+    if (page === 'dashboard') renderDashboard(container);
+    else if (page === 'labs') renderLabs(container);
+    else if (page === 'myreports') renderMyReports(container);
+    else if (page === 'report') renderReportForm(container);
+    else if (page === 'faults') renderFaults(container);
+    else if (page === 'monitoring') renderMonitoring(container);
+    else if (page === 'computers') renderComputers(container);
+    else if (page === 'users') renderUsers(container);
+    else if (page === 'analytics') renderAnalytics(container);
+    else container.innerHTML = `<div class="alert alert-info">Page: ${page} — coming soon.</div>`;
+}
+
+// ============================================================
+//  DASHBOARD
+// ============================================================
+
+
+
+// ============================================================
+//  LABS (with computer map)
+// ============================================================
+
+function renderLabs(container) {
+    if (selectedLabId) {
+        renderLabDetail(container);
+        return;
+    }
+
+    let html = `<h3 class="section-title">All Laboratories</h3><div class="grid-2">`;
+    LABS.forEach(lab => {
+        const labComps = computers.filter(c => c.labId === lab.id);
+        const totalL = labComps.length;
+        const healthyL = labComps.filter(c => c.status === 'HEALTHY').length;
+        const pct = totalL ? Math.round(healthyL / totalL * 100) : 0;
+        const faultyL = labComps.filter(c => c.status === 'FAULT_REPORTED' || c.status === 'WARNING').length;
+        const offlineL = labComps.filter(c => c.status === 'OFFLINE').length;
+        html += `
+            <div class="card" style="cursor:pointer;" onclick="selectLab(${lab.id})">
+                <div class="flex-between">
+                    <div><strong>${lab.name}</strong> <span class="text-muted text-sm">${lab.building}, ${lab.room}</span></div>
+                    <span class="status-badge ${pct > 90 ? 'healthy' : pct > 70 ? 'warning' : 'critical'}">
+                        <span class="dot"></span> ${pct}% Health
+                    </span>
+                </div>
+                <div class="flex gap-2 mt-1 text-sm">
+                    <span><span class="status-mark " aria-hidden="true"></span> ${healthyL} Available</span>
+                    <span><span class="status-mark faulty" aria-hidden="true"></span> ${faultyL} Faulty</span>
+                    <span><span class="status-mark offline" aria-hidden="true"></span> ${offlineL} Offline</span>
+                </div>
+                <div class="text-xs text-muted mt-1">${totalL} computers</div>
+                <button class="btn btn-sm btn-teal mt-1" onclick="event.stopPropagation();selectLab(${lab.id})">View Lab <i class="fas fa-arrow-right"></i></button>
+            </div>
+        `;
+    });
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+function selectLab(labId) {
+    selectedLabId = labId;
+    selectedComputerId = null;
+    navigateTo('labs');
+}
+
+function renderLabDetail(container) {
+    const lab = LABS.find(l => l.id === selectedLabId);
+    if (!lab) { selectedLabId = null; renderLabs(container); return; }
+
+    const labComps = computers.filter(c => c.labId === lab.id);
+    const healthyL = labComps.filter(c => c.status === 'HEALTHY').length;
+    const pct = labComps.length ? Math.round(healthyL / labComps.length * 100) : 0;
+
+    let html = `
+        <div class="flex-between mb-2">
+            <div>
+                <h3 class="section-title" style="margin-bottom:0;">${lab.name}</h3>
+                <span class="text-muted text-sm">${lab.building}, ${lab.room} &middot; ${labComps.length} computers &middot; ${pct}% healthy</span>
+            </div>
+            <div>
+                <button class="btn btn-sm btn-outline" onclick="selectedLabId=null;navigateTo('labs')"><i class="fas fa-arrow-left"></i> Back</button>
+            </div>
+        </div>
+        <div class="flex gap-2 mb-2" style="flex-wrap:wrap;">
+            <span class="status-badge healthy"><span class="dot"></span> Healthy</span>
+            <span class="status-badge warning"><span class="dot"></span> Warning</span>
+            <span class="status-badge critical"><span class="dot"></span> Faulty</span>
+            <span class="status-badge maintenance"><span class="dot"></span> Maintenance</span>
+            <span class="status-badge offline"><span class="dot"></span> Offline</span>
+        </div>
+        <div class="computer-grid">
+    `;
+
+    labComps.forEach(c => {
+        const info = getStatusInfo(c.status);
+        html += `
+            <div class="computer-tile ${info.cls}" onclick="selectComputer(${c.id})">
+                <div class="pc-id">${c.number}</div>
+                <div class="pc-status"><span class="dot-sm" style="background:${info.color};"></span> ${info.label}</div>
+                <div class="text-xs text-muted">${c.hostname}</div>
+            </div>
+        `;
+    });
+
+    html += `</div>`;
+
+    if (selectedComputerId) {
+        const comp = computers.find(c => c.id === selectedComputerId);
+        if (comp) {
+            html += renderComputerDetail(comp);
+        }
+    }
+
+    container.innerHTML = html;
+}
+
+function selectComputer(compId) {
+    selectedComputerId = compId;
+    navigateTo('labs');
+}
+
+
+
+function reportFaultForComputer(compId) {
+    selectedComputerId = compId;
+    navigateTo('report');
+}
+
+// ============================================================
+//  REPORT FORM
+// ============================================================
+
+function renderReportForm(container) {
+    const comp = selectedComputerId ? computers.find(c => c.id === selectedComputerId) : null;
+    const labOptions = LABS.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+    const typeOptions = FAULT_TYPES.map(t => `<option value="${t}">${t}</option>`).join('');
+
+    let html = `
+        <h3 class="section-title">Report a fault</h3>
+        <div class="card" style="max-width:600px;">
+            <p class="text-sm text-muted mb-2">Tell laboratory support what happened. Demo reports are saved in this browser only.</p>
+            <form id="reportForm">
+                <div class="form-group">
+                    <label for="reportLab">Laboratory *</label>
+                    <select class="form-control" id="reportLab" ${comp ? `disabled` : ''}>
+                        ${labOptions}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="reportComputer">Computer *</label>
+                    <select class="form-control" id="reportComputer" required>
+                        <option value="">Select a computer</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="reportType">Problem Category *</label>
+                    <select class="form-control" id="reportType">
+                        ${typeOptions}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="reportDesc">Description *</label>
+                    <textarea class="form-control" id="reportDesc" rows="4" maxlength="1500" minlength="10" required placeholder="Describe the issue in detail..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="reportNotes">Additional Notes <span class="hint">(optional)</span></label>
+                    <input class="form-control" id="reportNotes" placeholder="Any extra information" />
+                </div>
+                <button type="submit" class="btn btn-teal"><i class="fas fa-paper-plane"></i> Submit Report</button>
+                <button type="button" class="btn btn-outline" onclick="selectedComputerId=null;navigateTo('dashboard')">Cancel</button>
+                <div id="reportResult" class="mt-2"></div>
+            </form>
+        </div>
+    `;
+
+    container.innerHTML = html;
+
+    const labSelect = document.getElementById('reportLab');
+    const compSelect = document.getElementById('reportComputer');
+
+    function populateComputers(labId) {
+        const list = computers.filter(c => c.labId === parseInt(labId));
+        compSelect.innerHTML = '<option value="">Select a computer</option>' +
+            list.map(c => `<option value="${c.id}">${c.number} (${c.hostname}) — ${getStatusInfo(c.status).label}</option>`).join('');
+        if (comp) {
+            compSelect.value = comp.id;
+        }
+    }
+
+    if (comp) {
+        labSelect.value = comp.labId;
+        populateComputers(comp.labId);
+        labSelect.disabled = true;
+    } else {
+        labSelect.addEventListener('change', () => populateComputers(labSelect.value));
+        populateComputers(labSelect.value);
+    }
+
+    document.getElementById('reportForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const labId = parseInt(labSelect.value);
+        const computerId = parseInt(compSelect.value);
+        const type = document.getElementById('reportType').value;
+        const desc = document.getElementById('reportDesc').value.trim();
+        const notes = document.getElementById('reportNotes').value.trim();
+
+        if (!labId || !computerId || !type || desc.length < 10) {
+            document.getElementById('reportResult').innerHTML = `<div class="alert alert-danger">Please select a computer and enter at least 10 characters of detail.</div>`;
+            return;
+        }
+
+        const existing = faults.find(f => f.computerId === computerId && f.faultType === type && f.reportedBy === currentUser.id && f.status !== 'RESOLVED' && f.status !== 'CLOSED');
+        if (existing) {
+            document.getElementById('reportResult').innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="fas fa-triangle-exclamation"></i> This problem may already have been reported.
+                    <br><a href="#" onclick="navigateTo('myreports');return false;">View existing report #${existing.id}</a>
+                </div>
+            `;
+            return;
+        }
+
+        const report = createFault(computerId, type, desc, 'MANUAL', currentUser.id);
+        if (report && notes) report.notes.push(notes);
+        if (report) saveFaults();
+        if (report) {
+            document.getElementById('reportResult').innerHTML = `
+                <div class="alert alert-success">
+                    <strong>✓ Report saved ${reportsPersisted ? 'in this browser' : 'for this session only'}</strong><br>
+                    Report #${report.id} &middot; ${report.computerNumber} &middot; ${report.faultType}<br>
+                    Status: ${getFaultStatusBadge(report.status)}
+                    <br><a href="#" onclick="navigateTo('myreports');return false;" class="btn btn-sm btn-teal mt-1">View Report</a>
+                </div>
+            `;
+            document.getElementById('reportDesc').value = '';
+            document.getElementById('reportNotes').value = '';
+            document.getElementById('reportResult').scrollIntoView({ behavior: 'smooth' });
+        }
+    });
+}
+
+// ============================================================
+//  MY REPORTS
+// ============================================================
+
+
+
+// ============================================================
+//  FAULT MANAGEMENT (Technician)
+// ============================================================
+
+function renderFaults(container) {
+    const isTech = currentUser && ['TECHNICIAN','ADMIN'].includes(currentUser.role);
+    const isAdmin = currentUser && currentUser.role === 'ADMIN';
+    if (!isTech && !isAdmin) {
+        container.innerHTML = `<div class="alert alert-info">Fault management is available to Technicians and Administrators.</div>`;
+        return;
+    }
+
+    let html = `
+        <h3 class="section-title">${isTech ? 'Active Faults' : 'All Faults'}</h3>
+        <div class="flex gap-2 mb-2" style="flex-wrap:wrap;">
+            <select class="form-control" style="width:auto;min-width:140px;" id="faultFilterStatus">
+                <option value="ALL">All Status</option>
+                ${FAULT_STATUSES.map(s => `<option value="${s}">${s.replace('_',' ')}</option>`).join('')}
+            </select>
+            <select class="form-control" style="width:auto;min-width:140px;" id="faultFilterSource">
+                <option value="ALL">All Sources</option>
+                ${FAULT_SOURCES.map(s => `<option value="${s}">${s === 'AUTO' ? 'Automatic' : s === 'MANUAL' ? 'User report' : s}</option>`).join('')}
+            </select>
+            <input class="form-control" style="width:auto;min-width:160px;" placeholder="Search computer..." id="faultSearch" />
+            <button class="btn btn-teal btn-sm" onclick="applyFaultFilters()"><i class="fas fa-search"></i> Filter</button>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>#</th><th>Computer</th><th>Lab</th><th>Fault</th><th>Source</th><th>Status</th><th>Priority</th><th>Actions</th></tr></thead>
+                <tbody id="faultTableBody">
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    container.innerHTML = html;
+
+    function renderFaultTable() {
+        const statusFilter = document.getElementById('faultFilterStatus')?.value || 'ALL';
+        const sourceFilter = document.getElementById('faultFilterSource')?.value || 'ALL';
+        const search = document.getElementById('faultSearch')?.value?.toLowerCase() || '';
+
+        let list = faults;
+        if (statusFilter !== 'ALL') list = list.filter(f => f.status === statusFilter);
+        if (sourceFilter !== 'ALL') list = list.filter(f => f.source === sourceFilter);
+        if (search) list = list.filter(f => f.computerNumber.toLowerCase().includes(search) || f.faultType.toLowerCase().includes(search));
+
+        const tbody = document.getElementById('faultTableBody');
+        if (!tbody) return;
+
+        if (list.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" class="text-muted text-center">No faults found.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = list.slice().reverse().map(f => `
+            <tr>
+                <td>#${f.id}</td>
+                <td>${f.computerNumber}</td>
+                <td>${f.labName}</td>
+                <td>${htmlEscape(f.faultType)}</td>
+                <td><span class="text-xs">${f.source === 'AUTO' ? 'Automatic' : 'User report'}</span></td>
+                <td>${getFaultStatusBadge(f.status)}</td>
+                <td><span class="status-badge ${f.priority === 'CRITICAL' ? 'critical' : f.priority === 'HIGH' ? 'warning' : 'healthy'}"><span class="dot"></span> ${f.priority}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-primary" aria-label="View report" title="View report" onclick="viewFault(${f.id})"><i class="fas fa-eye"></i></button>
+                    ${isTech ? `
+                        <button class="btn btn-sm btn-success" aria-label="Acknowledge report" title="Acknowledge report" onclick="updateFaultStatus(${f.id},'ACKNOWLEDGED')"><i class="fas fa-check"></i></button>
+                        <button class="btn btn-sm btn-warning" aria-label="Start work" title="Start work" onclick="updateFaultStatus(${f.id},'IN_PROGRESS')"><i class="fas fa-play"></i></button>
+                        <button class="btn btn-sm btn-teal" aria-label="Resolve report" title="Resolve report" onclick="updateFaultStatus(${f.id},'RESOLVED')"><i class="fas fa-check-double"></i></button>
+                    ` : ''}
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    window.applyFaultFilters = renderFaultTable;
+    window.viewFault = function(id) {
+        const f = faults.find(f => f.id === id);
+        if (!f) return;
+        alert(`Report #${f.id}\nComputer: ${f.computerNumber}\nProblem: ${f.faultType}\nStatus: ${f.status}\nDescription: ${f.description}\nReported: ${new Date(f.reportedAt).toLocaleString()}`);
+    };
+    window.updateFaultStatus = function(id, newStatus) {
+        const f = faults.find(f => f.id === id);
+        if (!f) return;
+        if (!isSupport() || !FAULT_STATUSES.includes(newStatus) || f.status === newStatus) return;
+        f.status = newStatus;
+        f.resolvedAt = newStatus === 'RESOLVED' ? new Date().toISOString() : null;
+        f.history.push({ status: newStatus, at: new Date().toISOString(), by: currentUser.id });
+        saveFaults();
+        renderFaultTable();
+    };
+
+    renderFaultTable();
+}
+
+// ============================================================
+//  MONITORING (Technician)
+// ============================================================
+
+
+
+// ============================================================
+//  ADMIN PAGES
+// ============================================================
+
+function renderComputers(container) {
+    if (currentUser.role !== 'ADMIN') {
+        container.innerHTML = `<div class="alert alert-info">Admin only.</div>`;
+        return;
+    }
+    let html = `
+        <h3 class="section-title">Computer Management</h3>
+        <div class="flex gap-2 mb-2">
+            <input class="form-control" style="width:auto;min-width:200px;" placeholder="Search computers..." id="compSearch" />
+            <button class="btn btn-teal btn-sm" onclick="filterComputers()"><i class="fas fa-search"></i> Search</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th>#</th><th>Lab</th><th>Hostname</th><th>IP</th><th>Status</th><th>OS</th></tr></thead><tbody id="compTableBody">`;
+    const comps = computers.slice(0, 30);
+    comps.forEach(c => {
+        const lab = LABS.find(l => l.id === c.labId);
+        html += `<tr><td>${c.number}</td><td>${lab?.name || ''}</td><td>${c.hostname}</td><td>${c.ip}</td><td>${getStatusBadge(c.status)}</td><td class="text-xs">${c.os}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+
+    window.filterComputers = function() {
+        const search = document.getElementById('compSearch')?.value?.toLowerCase() || '';
+        const tbody = document.getElementById('compTableBody');
+        if (!tbody) return;
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(search) ? '' : 'none';
+        });
+    };
+}
+
+function renderUsers(container) {
+    if (currentUser.role !== 'ADMIN') {
+        container.innerHTML = `<div class="alert alert-info">Admin only.</div>`;
+        return;
+    }
+    let html = `<h3 class="section-title">User Management</h3><div class="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead><tbody>`;
+    users.forEach(u => {
+        html += `<tr><td>${u.name}</td><td>${u.email}</td><td><span class="role-badge">${u.role}</span></td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+}
+
+function renderAnalytics(container) {
+    if (currentUser.role !== 'ADMIN') {
+        container.innerHTML = `<div class="alert alert-info">Admin only.</div>`;
+        return;
+    }
+    const total = computers.length;
+    const healthy = computers.filter(c => c.status === 'HEALTHY').length;
+    const faulty = computers.filter(c => c.status === 'FAULT_REPORTED').length;
+    const offline = computers.filter(c => c.status === 'OFFLINE').length;
+    const openFaults = faults.filter(f => f.status !== 'RESOLVED' && f.status !== 'CLOSED').length;
+
+    let html = `
+        <h3 class="section-title">Analytics & Reports</h3>
+        <div class="stats-row">
+            <div class="stat-card"><div class="stat-label">Total Computers</div><div class="stat-value">${total}</div></div>
+            <div class="stat-card"><div class="stat-label">Healthy</div><div class="stat-value" style="color:#666b20;">${healthy}</div></div>
+            <div class="stat-card"><div class="stat-label">Faulty / Offline</div><div class="stat-value" style="color:#bb521e;">${faulty + offline}</div></div>
+            <div class="stat-card"><div class="stat-label">Open Faults</div><div class="stat-value" style="color:#666b20;">${openFaults}</div></div>
+        </div>
+        <div class="card"><h4>Faults by Category</h4>
+            <div class="flex gap-2" style="flex-wrap:wrap;">
+                ${FAULT_TYPES.map(t => {
+                    const count = faults.filter(f => f.faultType === t).length;
+                    return `<span class="text-sm">${t}: ${count}</span>`;
+                }).join(' &middot; ')}
+            </div>
+        </div>
+        <div class="card mt-2"><h4>Most Problematic Computers</h4>
+            <div class="flex gap-2" style="flex-wrap:wrap;">
+                ${computers.slice(0, 10).map(c => {
+                    const count = faults.filter(f => f.computerId === c.id).length;
+                    return `<span class="text-sm">${c.number}: ${count} faults</span>`;
+                }).join(' &middot; ')}
+            </div>
+        </div>
+    `;
+    container.innerHTML = html;
+}
+
+// ============================================================
+//  AUTH / LOGIN
+// ============================================================
+
+function showLogin() {
+    document.body.classList.add('signed-out');
+    document.getElementById('pageTitle').textContent = 'Welcome back';
+    document.getElementById('pageBreadcrumb').textContent = 'Your campus workspace / Sign in';
+    const container = document.getElementById('pages');
+    container.innerHTML = `
+        <div class="login-layout"><section class="login-story"><span class="eyebrow">A connected campus</span><h2>Good tools.<br>Better learning.</h2><p>Your laboratories, computers and support. All in one thoughtful workspace.</p><div class="story-footer"><i class="fas fa-circle-nodes" aria-hidden="true"></i> &nbsp; Detect. Report. Resolve.</div></section>
+            <div class="card" style="padding:2rem;">
+                <div style="text-align:center;margin-bottom:1.5rem;">
+                    <h1 style="font-size:1.75rem;font-weight:700;color:#151613;">Lab<span style="color:#666b20;">Connect</span></h1>
+                    <p style="color:#696b62;font-size:0.813rem;">Smart Computer Laboratory Management</p>
+                    <p style="color:#696b62;font-size:0.7rem;font-style:italic;">Detect. Report. Resolve.</p>
+                </div>
+                <div class="alert alert-info" style="font-size:0.75rem;">
+                    <strong>Demo Accounts</strong><br>
+                    student@labconnect.demo &middot; lecturer@labconnect.demo<br>
+                    technician@labconnect.demo &middot; admin@labconnect.demo<br>
+                    <span class="text-xs">(any password)</span>
+                </div>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input class="form-control" id="loginEmail" placeholder="email@labconnect.demo" value="student@labconnect.demo" />
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input class="form-control" id="loginPassword" type="password" placeholder="••••••••" value="demo123" />
+                    </div>
+                    <button type="submit" class="btn btn-teal" style="width:100%;justify-content:center;"><i class="fas fa-sign-in-alt"></i> Sign In</button>
+                </form>
+                <div id="loginError" class="mt-2"></div>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('loginForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = document.getElementById('loginEmail').value.trim();
+        const user = users.find(u => u.email === email);
+        if (user) {
+            currentUser = user;
+            document.getElementById('sidebar').classList.remove('open');
+            renderSidebar();
+            navigateTo('dashboard');
+        } else {
+            document.getElementById('loginError').innerHTML = `<div class="alert alert-danger">Invalid credentials. Try one of the demo accounts.</div>`;
+        }
+    });
+}
+
+// ============================================================
+//  LOGOUT
+// ============================================================
+
+document.getElementById('logoutBtn').addEventListener('click', () => {
+    currentUser = null;
+    selectedLabId = null;
+    selectedComputerId = null;
+    renderSidebar();
+    showLogin();
+});
+
+// ============================================================
+//  SIDEBAR TOGGLE (mobile)
+// ============================================================
+
+document.getElementById('sidebarToggle').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.toggle('open');
+});
+
+document.addEventListener('click', (e) => {
+    const sidebar = document.getElementById('sidebar');
+    if (window.innerWidth <= 768 && sidebar.classList.contains('open') && !sidebar.contains(e.target) && !e.target.closest('#sidebarToggle')) {
+        sidebar.classList.remove('open');
+    }
+});
+
+// ============================================================
+//  INIT
+// ============================================================
+
+
+window.navigateTo = navigateTo;
+window.selectLab = selectLab;
+window.selectComputer = selectComputer;
+window.reportFaultForComputer = reportFaultForComputer;
+
+</script>
+<script src="agent.js"></script>
+</body>
+</html>
