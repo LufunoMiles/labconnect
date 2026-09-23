@@ -4,7 +4,17 @@ function renderLabs(container) {
         return;
     }
 
-    let html = `<h3 class="section-title">All cluster groups</h3><div class="grid-2">`;
+    const isAdmin = currentUser && currentUser.role === 'ADMIN';
+    let html = `<h3 class="section-title">All cluster groups</h3>`;
+    if (isAdmin) {
+        html += `<form class="manage-form" id="addLabForm">
+            <div class="form-group"><label for="newLabName">Laboratory name *</label><input class="form-control" id="newLabName" placeholder="e.g. Computer Lab 5" required /></div>
+            <div class="form-group"><label for="newLabBuilding">Building</label><input class="form-control" id="newLabBuilding" placeholder="e.g. Science Block" /></div>
+            <div class="form-group"><label for="newLabRoom">Room</label><input class="form-control" id="newLabRoom" placeholder="e.g. F003" /></div>
+            <button type="submit" class="btn btn-teal btn-sm"><i class="fas fa-plus" aria-hidden="true"></i> Add laboratory</button>
+        </form>`;
+    }
+    html += `<div class="grid-2">`;
     LABS.forEach(lab => {
         const labComps = computers.filter(c => c.labId === lab.id);
         const totalL = labComps.length;
@@ -32,6 +42,20 @@ function renderLabs(container) {
     });
     html += `</div>`;
     container.innerHTML = html;
+
+    if (isAdmin) {
+        document.getElementById('addLabForm').addEventListener('submit', e => {
+            e.preventDefault();
+            const name = document.getElementById('newLabName').value.trim();
+            const building = document.getElementById('newLabBuilding').value.trim() || 'Unassigned building';
+            const room = document.getElementById('newLabRoom').value.trim() || 'Unassigned room';
+            if (!name) return;
+            const nextId = LABS.length ? Math.max(...LABS.map(l => l.id)) + 1 : 1;
+            LABS.push({ id: nextId, name, building, room, total: 0 });
+            saveFaults();
+            renderLabs(container);
+        });
+    }
 }
 
 function selectLab(labId) {

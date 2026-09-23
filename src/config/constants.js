@@ -22,4 +22,24 @@ const FAULT_TYPES = [
 ];
 
 const FAULT_SOURCES = ['MANUAL', 'AUTO'];
-const FAULT_STATUSES = ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
+const FAULT_STATUSES = ['OPEN', 'ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED', 'REOPENED'];
+
+// Ticket workflow: Open -> Acknowledged -> In Progress -> Resolved -> Closed, with Reopened for a failed repair.
+const FAULT_TRANSITIONS = {
+    OPEN: ['ACKNOWLEDGED'],
+    ACKNOWLEDGED: ['IN_PROGRESS'],
+    IN_PROGRESS: ['RESOLVED'],
+    RESOLVED: ['CLOSED', 'REOPENED'],
+    REOPENED: ['ACKNOWLEDGED'],
+    CLOSED: []
+};
+
+// Buttons offered per status: [newStatus, label, icon, buttonClass, noteRequired]
+const FAULT_ACTIONS = {
+    OPEN: [['ACKNOWLEDGED', 'Acknowledge', 'fa-check', 'btn-success', false]],
+    ACKNOWLEDGED: [['IN_PROGRESS', 'Start', 'fa-play', 'btn-warning', false]],
+    IN_PROGRESS: [['RESOLVED', 'Resolve', 'fa-check-double', 'btn-teal', true]],
+    RESOLVED: [['CLOSED', 'Close', 'fa-box-archive', 'btn-primary', false], ['REOPENED', 'Reopen', 'fa-rotate-left', 'btn-danger', true]],
+    REOPENED: [['ACKNOWLEDGED', 'Acknowledge', 'fa-check', 'btn-success', false]],
+    CLOSED: []
+};

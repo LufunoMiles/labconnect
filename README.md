@@ -1,6 +1,32 @@
 # LabConnect
 
-A static browser prototype for managing laboratory clusters and reporting computer faults. Create an account, set up a head node and compute nodes, and use the dashboard and reporting pages. Workspace data and accounts stay in browser local storage; authentication and device readings are prototype features, not a connected backend.
+A static browser prototype for reporting and managing computer laboratory faults, aligned
+with the COM2301 Part B feasibility study (Student, Lecturer, Technician, Administrator).
+Create an account, set up a head node and compute nodes, and use the dashboard and
+reporting pages.
+
+## Prototype limitations (read before demoing or grading)
+
+This is a functional demonstration, not a production system:
+
+- **No shared database.** All accounts, laboratories, computers and fault reports are
+  stored in this browser's `localStorage` only. Nothing is shared between browsers,
+  devices, or people — two people testing on different machines will not see each
+  other's data.
+- **No server-side authentication or permissions.** Passwords are hashed client-side
+  with the Web Crypto API before being saved to `localStorage`; there is no server to
+  verify identity or enforce access control. Role checks (Student/Lecturer/
+  Technician/Admin) run in the browser and can be bypassed by anyone editing the page's
+  JavaScript.
+- **No live health checks.** "Cluster conditions", network status and storage figures
+  on the dashboard are static/sample values from onboarding, not real telemetry from any
+  computer.
+- **No email, SMS or push notifications.** Status changes are only visible when a user
+  is signed in and viewing the relevant page.
+- **Single workspace only.** The "Cluster group" / laboratory list only contains the
+  labs created during onboarding or by an Administrator; there is no multi-department
+  or multi-campus support.
+- **No photo upload** on fault reports yet, despite the doc listing it as optional.
 
 ## Run locally
 
@@ -25,9 +51,9 @@ assets/
 src/
   app.js                   Startup and global UI listeners
   router.js                Page navigation and titles
-  config/                  Status definitions and storage keys
+  config/                  Status definitions, storage keys, ticket status transitions
   state/                   Shared workspace and view state
-  services/                Browser persistence, authentication, report creation
+  services/                Browser persistence, authentication, report/ticket lifecycle
   utils/                   Formatting and HTML escaping
   components/              Navigation, status badges, computer details
   pages/                   One file per application view
@@ -38,6 +64,20 @@ tests/
   check-browser.cjs        Current workflow smoke check
   legacy/check-browser.cjs Historical demo check (not the current app)
 ```
+
+## Ticket workflow
+
+Fault reports ("tickets") move through: `Open → Acknowledged → In Progress → Resolved →
+Closed`, with `Reopened` available from `Resolved` if a repair fails (which routes back
+through `Acknowledged`). Invalid jumps (e.g. Open straight to Resolved) are rejected.
+Every status change is recorded with the actor, timestamp and an optional/required note,
+viewable from the "View" action in the technician fault queue.
+
+Before a student can create a new ticket, the system checks for a matching unresolved
+report on the same computer and fault type (from any student) and offers a "Confirm this
+is still happening" action instead of creating a duplicate. Reports for different fault
+types on the same computer are always kept as separate tickets.
+
 
 Pages include dashboard, monitoring, laboratories, report submission, my reports, fault management, computers, users, analytics, authentication, and onboarding. These are JavaScript-rendered views inside the shared shell, not separate HTML documents. Existing navigation and visibility rules are preserved.
 

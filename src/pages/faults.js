@@ -5,28 +5,46 @@ function renderFaults(container) {
         container.innerHTML = `<div class="alert alert-info">Fault management is available to Technicians and Administrators.</div>`;
         return;
     }
+    const technicians = users.filter(u => u.role === 'TECHNICIAN');
 
     let html = `
         <h3 class="section-title">${isTech ? 'Active node faults' : 'All node faults'}</h3>
         <div class="flex gap-2 mb-2" style="flex-wrap:wrap;">
-            <select class="form-control" style="width:auto;min-width:140px;" id="faultFilterStatus">
+            <label class="sr-only" for="faultFilterStatus">Filter by status</label>
+            <select class="form-control" style="width:auto;min-width:140px;" id="faultFilterStatus" aria-label="Filter by status">
                 <option value="ALL">All status</option>
                 ${FAULT_STATUSES.map(s => `<option value="${s}">${s.replace('_',' ')}</option>`).join('')}
             </select>
-            <select class="form-control" style="width:auto;min-width:140px;" id="faultFilterSource">
+            <label class="sr-only" for="faultFilterSource">Filter by source</label>
+            <select class="form-control" style="width:auto;min-width:140px;" id="faultFilterSource" aria-label="Filter by source">
                 <option value="ALL">All sources</option>
                 ${FAULT_SOURCES.map(s => `<option value="${s}">${s === 'AUTO' ? 'Automatic' : s === 'MANUAL' ? 'User report' : s}</option>`).join('')}
             </select>
-            <input class="form-control" style="width:auto;min-width:160px;" placeholder="Search node..." id="faultSearch" />
-            <button class="btn btn-teal btn-sm" onclick="applyFaultFilters()"><i class="fas fa-search"></i> Filter</button>
+            <label class="sr-only" for="faultFilterLab">Filter by laboratory</label>
+            <select class="form-control" style="width:auto;min-width:140px;" id="faultFilterLab" aria-label="Filter by laboratory">
+                <option value="ALL">All labs</option>
+                ${LABS.map(l => `<option value="${l.id}">${l.name}</option>`).join('')}
+            </select>
+            <label class="sr-only" for="faultFilterPriority">Filter by priority</label>
+            <select class="form-control" style="width:auto;min-width:140px;" id="faultFilterPriority" aria-label="Filter by priority">
+                <option value="ALL">All priorities</option>
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+            </select>
+            <label class="sr-only" for="faultSearch">Search node or fault type</label>
+            <input class="form-control" style="width:auto;min-width:160px;" placeholder="Search node..." id="faultSearch" aria-label="Search node or fault type" />
+            <button class="btn btn-teal btn-sm" onclick="applyFaultFilters()"><i class="fas fa-search" aria-hidden="true"></i> Filter</button>
         </div>
         <div class="table-wrap">
             <table>
-                <thead><tr><th>#</th><th>Computer</th><th>Lab</th><th>Fault</th><th>Source</th><th>Status</th><th>Priority</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Computer</th><th>Lab</th><th>Fault</th><th>Source</th><th>Status</th><th>Priority</th>${isAdmin ? '<th>Assigned to</th>' : ''}<th>Actions</th></tr></thead>
                 <tbody id="faultTableBody">
                 </tbody>
             </table>
         </div>
+        <div id="faultDetail" aria-live="polite"></div>
     `;
 
     container.innerHTML = html;
@@ -34,58 +52,100 @@ function renderFaults(container) {
     function renderFaultTable() {
         const statusFilter = document.getElementById('faultFilterStatus')?.value || 'ALL';
         const sourceFilter = document.getElementById('faultFilterSource')?.value || 'ALL';
+        const labFilter = document.getElementById('faultFilterLab')?.value || 'ALL';
+        const priorityFilter = document.getElementById('faultFilterPriority')?.value || 'ALL';
         const search = document.getElementById('faultSearch')?.value?.toLowerCase() || '';
 
         let list = faults;
         if (statusFilter !== 'ALL') list = list.filter(f => f.status === statusFilter);
         if (sourceFilter !== 'ALL') list = list.filter(f => f.source === sourceFilter);
+        if (labFilter !== 'ALL') list = list.filter(f => f.labId === parseInt(labFilter));
+        if (priorityFilter !== 'ALL') list = list.filter(f => f.priority === priorityFilter);
         if (search) list = list.filter(f => f.computerNumber.toLowerCase().includes(search) || f.faultType.toLowerCase().includes(search));
 
         const tbody = document.getElementById('faultTableBody');
         if (!tbody) return;
 
         if (list.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="8" class="text-muted text-center">No faults found.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${isAdmin ? 9 : 8}" class="text-muted text-center">No faults found.</td></tr>`;
             return;
         }
 
-        tbody.innerHTML = list.slice().reverse().map(f => `
+        tbody.innerHTML = list.slice().reverse().map(f => {
+            const actions = isTech ? (FAULT_ACTIONS[f.status] || []) : [];
+            const assignedTech = users.find(u => u.id === f.assignedTechnician);
+            return `
             <tr>
                 <td>#${f.id}</td>
-                <td>${f.computerNumber}</td>
+                <td>${f.computerNumber}${f.confirmations && f.confirmations.length > 1 ? ` <span class="text-xs text-muted" title="Confirmed by ${f.confirmations.length} people">(${f.confirmations.length}x)</span>` : ''}</td>
                 <td>${f.labName}</td>
                 <td>${htmlEscape(f.faultType)}</td>
                 <td><span class="text-xs">${f.source === 'AUTO' ? 'Automatic' : 'User report'}</span></td>
                 <td>${getFaultStatusBadge(f.status)}</td>
                 <td><span class="status-badge ${f.priority === 'CRITICAL' ? 'critical' : f.priority === 'HIGH' ? 'warning' : 'healthy'}"><span class="dot"></span> ${f.priority}</span></td>
+                ${isAdmin ? `<td>
+                    <label class="sr-only" for="assign-${f.id}">Assign technician for report ${f.id}</label>
+                    <select class="form-control" style="min-width:120px;" id="assign-${f.id}" onchange="assignFaultTo(${f.id}, this.value)">
+                        <option value="">Unassigned</option>
+                        ${technicians.map(t => `<option value="${t.id}" ${assignedTech && assignedTech.id === t.id ? 'selected' : ''}>${htmlEscape(t.name)}</option>`).join('')}
+                    </select>
+                </td>` : ''}
                 <td>
-                    <button class="btn btn-sm btn-primary" aria-label="View report" title="View report" onclick="viewFault(${f.id})"><i class="fas fa-eye"></i></button>
-                    ${isTech ? `
-                        <button class="btn btn-sm btn-success" aria-label="Acknowledge report" title="Acknowledge report" onclick="updateFaultStatus(${f.id},'ACKNOWLEDGED')"><i class="fas fa-check"></i></button>
-                        <button class="btn btn-sm btn-warning" aria-label="Start work" title="Start work" onclick="updateFaultStatus(${f.id},'IN_PROGRESS')"><i class="fas fa-play"></i></button>
-                        <button class="btn btn-sm btn-teal" aria-label="Resolve report" title="Resolve report" onclick="updateFaultStatus(${f.id},'RESOLVED')"><i class="fas fa-check-double"></i></button>
-                    ` : ''}
+                    <button class="btn btn-sm btn-primary" aria-label="View report ${f.id} details" title="View details" onclick="viewFault(${f.id})"><i class="fas fa-eye" aria-hidden="true"></i></button>
+                    ${actions.map(([newStatus, label, icon, cls, noteRequired]) => `
+                        <button class="btn btn-sm ${cls}" aria-label="${label} report ${f.id}" title="${label}" onclick="updateFaultStatus(${f.id},'${newStatus}',${noteRequired})"><i class="fas ${icon}" aria-hidden="true"></i></button>
+                    `).join('')}
                 </td>
             </tr>
-        `).join('');
+        `;
+        }).join('');
     }
 
     window.applyFaultFilters = renderFaultTable;
+
     window.viewFault = function(id) {
         const f = faults.find(f => f.id === id);
         if (!f) return;
-        alert(`Report #${f.id}\nComputer: ${f.computerNumber}\nProblem: ${f.faultType}\nStatus: ${f.status}\nDescription: ${f.description}\nReported: ${new Date(f.reportedAt).toLocaleString()}`);
+        const detail = document.getElementById('faultDetail');
+        detail.innerHTML = `<section class="card mt-2">
+            <div class="flex-between"><h4>Report #${f.id} &middot; ${htmlEscape(f.faultType)}</h4>${getFaultStatusBadge(f.status)}</div>
+            <p class="text-sm text-muted mt-1">${f.computerNumber} &middot; ${f.labName} &middot; Reported by ${htmlEscape(getUserName(f.reportedBy))} on ${new Date(f.reportedAt).toLocaleString()}</p>
+            <p class="mt-1">${htmlEscape(f.description)}</p>
+            <h5 class="mt-2">History</h5>
+            <ul class="history-list">
+                ${f.history.slice().reverse().map(h => `<li><strong>${h.status.replace('_',' ')}</strong> by ${htmlEscape(h.actorName || getUserName(h.by))} &middot; <span class="text-xs text-muted">${new Date(h.at).toLocaleString()}</span>${h.note ? `<br><span class="text-sm">${htmlEscape(h.note)}</span>` : ''}</li>`).join('')}
+            </ul>
+            <button class="btn btn-sm btn-outline mt-2" onclick="document.getElementById('faultDetail').innerHTML=''">Close</button>
+        </section>`;
+        detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     };
-    window.updateFaultStatus = function(id, newStatus) {
+
+    window.updateFaultStatus = function(id, newStatus, noteRequired) {
         const f = faults.find(f => f.id === id);
-        if (!f) return;
-        if (!isSupport() || !FAULT_STATUSES.includes(newStatus) || f.status === newStatus) return;
-        f.status = newStatus;
-        f.resolvedAt = newStatus === 'RESOLVED' ? new Date().toISOString() : null;
-        f.history.push({ status: newStatus, at: new Date().toISOString(), by: currentUser.id });
+        if (!f || !isSupport()) return;
+        let note = '';
+        if (noteRequired) {
+            note = prompt(newStatus === 'REOPENED' ? 'Explain why the repair failed (required):' : 'Add a repair note (required):') || '';
+            if (!note.trim()) { alert('A note is required for this action.'); return; }
+        } else {
+            note = prompt('Optional note for this update:') || '';
+        }
+        const result = changeFaultStatus(f, newStatus, currentUser, note.trim());
+        if (!result.ok) { alert(result.error); return; }
+        saveFaults();
+        renderFaultTable();
+    };
+
+    window.assignFaultTo = function(id, technicianId) {
+        const f = faults.find(f => f.id === id);
+        if (!f || !isAdmin) return;
+        if (!technicianId) { f.assignedTechnician = null; saveFaults(); return; }
+        const result = assignFault(f, technicianId, currentUser);
+        if (!result.ok) { alert(result.error); return; }
         saveFaults();
         renderFaultTable();
     };
 
     renderFaultTable();
 }
+
