@@ -27,6 +27,9 @@ This is a functional demonstration, not a production system:
   labs created during onboarding or by an Administrator; there is no multi-department
   or multi-campus support.
 - **No photo upload** on fault reports yet, despite the doc listing it as optional.
+- **SQL migrations are schema-only.** [db/migrations](db/migrations) defines the tables
+  a real backend would use, but nothing in `src/` reads from or writes to a database —
+  see [db/README.md](db/README.md).
 
 ## Run locally
 
@@ -59,6 +62,9 @@ src/
   pages/                   One file per application view
 archive/
   old.html                 Original prototype, preserved unchanged
+db/
+  README.md                 How to run the migrations, and what they map to in src/
+  migrations/                Numbered SQL schema migrations (not yet wired to the app)
 docs/                     Architecture and conversion notes
 tests/
   check-browser.cjs        Current workflow smoke check
@@ -77,7 +83,6 @@ Before a student can create a new ticket, the system checks for a matching unres
 report on the same computer and fault type (from any student) and offers a "Confirm this
 is still happening" action instead of creating a duplicate. Reports for different fault
 types on the same computer are always kept as separate tickets.
-
 
 Pages include dashboard, monitoring, laboratories, report submission, my reports, fault management, computers, users, analytics, authentication, and onboarding. These are JavaScript-rendered views inside the shared shell, not separate HTML documents. Existing navigation and visibility rules are preserved.
 
